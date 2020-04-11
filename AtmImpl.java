@@ -3,8 +3,6 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.io.*; // For reading from csv file
 
-// Run this command before program: start rmiregistry
-
 public class AtmImpl extends UnicastRemoteObject implements Atm {
     // If they the user enters a proper account number and pin then they
     // will be granted access to a row in the spreadsheet
@@ -16,19 +14,7 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
     public AtmImpl() throws RemoteException {}
     public String accessAccount(String accountNum, String accountPin) {
         // Close any open accounts
-        if (allowAccess) {
-            try {
-                writeCSV();
-            }
-            catch (Exception e) {
-                System.out.println("Write CSV Exception: " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-        // Set back to default values if they were logged into another accound
-        allowAccess = false;
-        accountRow = 0;
-        currentBalance = -9999.9;
+        exitAccount();
 
         int result = 0;
         try {
@@ -61,6 +47,9 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
         }
     }
     public String deposit(double amount) {
+        if (amount < 0) {
+            return "Unable to deposit a negative amount";
+        }
         // Check if user is logged in
         if (allowAccess) {
             // Update current balance
@@ -74,6 +63,9 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
         }
     }
     public String withdraw(double amount) {
+        if (amount < 0) {
+            return "Unable to withdraw a negative amount";
+        }
         // Check if user is logged in
         if (allowAccess) {
             // Make sure user will not bring balance below zero
@@ -91,6 +83,25 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
             return "WithdrawError: User needs to access an account";
         }
     }
+    public String exitAccount() {
+        // Close any open accounts
+        if (allowAccess) {
+            try {
+                writeCSV();
+            }
+            catch (Exception e) {
+                System.out.println("Write CSV Exception: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
+
+        // Set back to default values if they were logged into another accound
+        allowAccess = false;
+        accountRow = 0;
+        currentBalance = -9999.9;
+
+        return "ExitAccountSuccess: Successfully updated ATM and closed access to current account";
+    }
     private int findRow(String accountNum, String accountPin) throws FileNotFoundException, IOException {
         BufferedReader br = new BufferedReader(new FileReader("atm.csv"));
         FileWriter fw = new FileWriter("temp-atm.csv");
@@ -100,17 +111,22 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
             String[] line = row.split(",");
             if (!allowAccess && line[0].equals(accountNum) && line[1].equals(accountPin)) {
                 if (line[3] == "1") {
+                    // Don't write anything and return
+                    br.close();
+                    fw.close();
                     return 1;
                 }
                 allowAccess = true;
                 accountRow = i;
                 currentBalance = Double.valueOf(line[2]);
-                line[3] = "1"; // Set that the line is being accessed
                 rowData = line;
-            }
-            else {
+                rowData[3] = "1"; // Set that the line is being accessed
                 fw.append(String.join(",", rowData));
             }
+            else {
+                fw.append(row);
+            }
+            fw.append("\n");
             i++;
         }
         // Close file being read
@@ -122,7 +138,8 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
         // Replace csv file with temp one so it contains updated access field
         File f1 = new File("temp-atm.csv");
         File f2 = new File("atm.csv");
-        boolean b = f1.renameTo(f2);
+        f2.delete();
+        f1.renameTo(f2);
 
         return 0;
     }
@@ -133,7 +150,6 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
         int i = 0;
         String row;
         while ((row = br.readLine()) != null) {
-            String[] line = row.split(",");
             if (i == accountRow) {
                 // Write over this line
                 fw.append(String.join(",", rowData));
@@ -141,6 +157,7 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
             else {
                 fw.append(row);
             }
+            fw.append("\n");
             i++;
         }
         // Close file being read
@@ -152,19 +169,8 @@ public class AtmImpl extends UnicastRemoteObject implements Atm {
         // Replace csv file with temp one so it contains updated fields
         File f1 = new File("temp-atm.csv");
         File f2 = new File("atm.csv");
-        boolean b = f1.renameTo(f2);
-    }
-    protected void finalize() {
-        // Close any open accounts
-        if (allowAccess) {
-            try {
-                writeCSV();
-            }
-            catch (Exception e) {
-                System.out.println("Write CSV Exception: " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
+        f2.delete();
+        f1.renameTo(f2);
     }
     public static void main(String arg[]){
         try {

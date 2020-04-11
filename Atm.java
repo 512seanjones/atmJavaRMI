@@ -9,4 +9,6 @@ public interface Atm extends java.rmi.Remote {
     String deposit(double amount) throws RemoteException;
     // Print success with new balance or failure
     String withdraw(double amount) throws RemoteException;
+    // Print success or failure
+    String exitAccount() throws RemoteException;
 }
