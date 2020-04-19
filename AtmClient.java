@@ -61,7 +61,7 @@ public class AtmClient {
                 }
                 System.out.println("Would you like to access another account (y or n)?");
                 String exitChoice = in.nextLine();
-                if (exitChoice != "y") {
+                if (exitChoice.compareTo("y") != 0) {
                     System.out.println("Goodbye");
                     break;
                 }
