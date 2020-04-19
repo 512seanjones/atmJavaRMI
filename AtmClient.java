@@ -16,7 +16,7 @@ public class AtmClient {
                     System.out.println("Sorry that account does not exist");
                     continue;
                 }
-                System.out.println("Please enter a pin number:")
+                System.out.println("Please enter a pin number:");
                 String pin = in.nextLine();
                 if (obj.accessAccount(accountNum, pin)) {
                     boolean inAccount = true;
@@ -28,15 +28,15 @@ public class AtmClient {
                         System.out.println("\t1. Withdraw from account");
                         System.out.println("\t2. Deposit to account");
                         System.out.println("\t3. Exit account");
-                        choice = in.nextLine();
+                        String choice = in.nextLine();
                         switch (choice) {
                             case "1": {
-                                System.out.println("Enter deposit amount:")
+                                System.out.println("Enter deposit amount:");
                                 float amount = in.nextFloat();
                                 System.out.println(obj.withdraw(amount));
                             }
                             case "2": {
-                                System.out.println("Enter withdraw amount")
+                                System.out.println("Enter withdraw amount");
                                 float amount = in.nextFloat();
                                 System.out.println(obj.deposit(amount));
                                 break;
@@ -58,7 +58,7 @@ public class AtmClient {
                     continue;
                 }
                 System.out.println("Would you like to access another account (y or n)?");
-                exitChoice = in.nextLine();
+                String exitChoice = in.nextLine();
                 if (exitChoice != "y") {
                     System.out.println("Goodbye");
                     break;
