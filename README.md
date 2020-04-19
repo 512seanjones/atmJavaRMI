@@ -4,10 +4,10 @@
 __Must start server first for proper operation__
 ### Windows
 * Server:
-__Terminal 1__
+    * __Terminal 1__
     * cd mysql/bin
     * mysqld --console
-__Terminal 2__
+    * __Terminal 2__
     * javac Atm.java AtmImpl.java
     * start rmiregistry 
     * java AtmImpl
