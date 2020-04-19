@@ -1,185 +1,227 @@
+import java.sql.*;
 import java.rmi.Naming;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
-import java.io.*; // For reading from csv file
 
 public class AtmImpl extends UnicastRemoteObject implements Atm {
-    // If they the user enters a proper account number and pin then they
-    // will be granted access to a row in the spreadsheet
-    private boolean allowAccess = false; // start with no access
-    private int accountRow = 0; // row 0 will contain headers
-    private double currentBalance = -9999.9; // this value will be filled in
-    // Setup data structures to hold csv values
-    private String[] rowData = {" "," "," "," "};
-    public AtmImpl() throws RemoteException {}
-    public String accessAccount(String accountNum, String accountPin) {
-        // Close any open accounts
-        exitAccount();
-
-        int result = 0;
-        try {
-            result = findRow(accountNum, accountPin);
-        }
-        catch (Exception e) {
-            System.out.println("Find row exception: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        if (result == 1) {
-            // Row was found, but is being accessed by someone else
-            return "AccessAccountError: This account is currently being accessed by someone else";
-        }
-
-        if (allowAccess) {
-            return "AccessAccountSuccess: Access granted";
-        }
-        else {
-            return "AccessAccountError: Could not find a matching account and pin value";
-        }
+    private boolean allowAccess = false;
+    Connection conn; //used for establishing database connection
+    Statement stmt; //Allocate a 'Statement' object in the Connection
+    String account_number = new String();
+    public AtmImpl() throws RemoteException, SQLException{
+      conn = DriverManager.getConnection(
+            "jdbc:mysql://localhost:3306/atm_database?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC",
+            "myuser", "xxxx");
+      stmt = conn.createStatement();
     }
+
+    public boolean lookupAccount(String accountNum){
+      boolean account_exists = false;
+      try{
+          //executes above query to search for a row in datbase that matches AccountNum
+          String accountNum_query = "SELECT * FROM atm_database WHERE AccountNum = " + accountNum + " LIMIT 1";
+          ResultSet rset = stmt.executeQuery(accountNum_query);
+          //will return 0 if the strings for PinNum and account pin arenthe same;
+          account_exists = rset.next();
+
+        }
+      catch(Exception e) {
+          System.out.println("Account lookup exception: " + e.getMessage());
+          e.printStackTrace();
+      }
+      return account_exists;
+    }
+
+    public boolean accessAccount(String accountNum, String accountPin){
+      int result = 1;
+      int rows_affected = 0;
+      boolean correct_pin = false;
+      boolean lookupAccount = false;
+      try{
+          //executes above query to search for a row in datbase that matches AccountNum
+          String accountNum_query = "SELECT * FROM atm_database WHERE AccountNum = " + accountNum + " LIMIT 1";
+          ResultSet rset = stmt.executeQuery(accountNum_query);
+          //will return 0 if the strings for PinNum and account pin arenthe same;
+          lookupAccount = rset.next();
+          if(lookupAccount){
+              lookupAccount = true;
+              if(rset.getInt("Accessed") == 1) result = 1;
+              else result = 0;
+
+              if(((rset.getString("PinNum")).compareTo(accountPin)) == 0) correct_pin = true;
+              else correct_pin = false;
+
+              if(correct_pin == true && result == 0){
+                  String update_query = "UPDATE atm_database SET Accessed = 1 WHERE AccountNum = " + accountNum;
+                  rows_affected = stmt.executeUpdate(update_query);
+              }
+            }
+
+        }
+      catch(Exception e) {
+          System.out.println("Validate Access exception: " + e.getMessage());
+          e.printStackTrace();
+      }
+      if(!lookupAccount){
+        //coundnt locate account
+        System.out.println("\nCouldnt locate account to grant access\n");
+        return false;
+      }
+      if (result == 1) {
+          // Row was found, but is being accessed by someone else
+          return false;
+      }
+      if(correct_pin){
+          if(rows_affected != 0){
+            allowAccess = true;
+            account_number = accountNum;
+            return true;
+          }
+          else{
+            allowAccess = false;
+            return false;
+          }
+      }
+      else {
+          allowAccess = false;
+          return false;
+      }
+    }
+
+
+
+
     public String getBalance() {
-        // Check if user is logged in
-        if (allowAccess) {
-            return "GetBalanceSuccess: User has a current balance of " + Double.toString(currentBalance);
+        String balance = new String();
+        if(allowAccess){
+          try{
+              String accountNum_query = "SELECT * FROM atm_database WHERE AccountNum = " + account_number + " LIMIT 1";
+
+              ResultSet rset = stmt.executeQuery(accountNum_query);
+              rset.next();
+              balance = rset.getString("Balance");
+          }
+          catch(Exception e){
+            System.out.println("Get Balance exception: " + e.getMessage());
+            e.printStackTrace();
+          }
         }
-        else {
-            return "GetBalanceError: User needs to access an account";
+        else{
+          return "GetBalanceError: User needs to access an account";
+
         }
+        return "$" + balance;
     }
-    public String deposit(double amount) {
+    public String deposit(double amount){
+        Double balance;
+        int success = 0;
+        Double new_balance = 0.0;
         if (amount < 0) {
             return "Unable to deposit a negative amount";
         }
-        // Check if user is logged in
-        if (allowAccess) {
-            // Update current balance
-            currentBalance += amount;
-            // Update balance in atmData
-            rowData[2] = Double.toString(currentBalance);
-            return "DepositSuccess: User now has a balance of " + rowData[2];
-        }
-        else {
-            return "DepositError: User needs to access an account";
-        }
+        if(allowAccess){
+            try{
+                String accountNum_query = "SELECT * FROM atm_database WHERE AccountNum = " + account_number + " LIMIT 1";
+                //executes above query to search for a row in datbase that matches AccountNum
+                ResultSet rset = stmt.executeQuery(accountNum_query);
+                rset.next();
+                balance = rset.getDouble("Balance");
+                new_balance = balance + amount;
+                String update_balance = "UPDATE atm_database SET Balance = " + Double.toString(new_balance) + " WHERE AccountNum = " + account_number;
+                success = stmt.executeUpdate(update_balance);
+          }
+          catch(Exception e){
+            System.out.println("Make Deposit exception: " + e.getMessage());
+            e.printStackTrace();
+          }
+          if(success == 0){
+            return "Unable to deposit amount. atm database error";
+          }
+          else{
+            return "DepositSuccess: User now has a balance of " + Double.toString(new_balance);
+          }
+
+      }
+      else{
+        return "DepositError: User needs to access an account";
+      }
     }
+
     public String withdraw(double amount) {
+        Double balance;
+        int success = 0;
+        Double new_balance = 0.0;
+        boolean sufficient_funds = true;
         if (amount < 0) {
             return "Unable to withdraw a negative amount";
         }
         // Check if user is logged in
         if (allowAccess) {
-            // Make sure user will not bring balance below zero
-            if (currentBalance - amount < 0) {
+          try{
+              String accountNum_query = "SELECT * FROM atm_database WHERE AccountNum = " + account_number + " LIMIT 1";
+              //executes above query to search for a row in datbase that matches AccountNum
+              ResultSet rset = stmt.executeQuery(accountNum_query);
+              rset.next();
+              balance = rset.getDouble("Balance");
+              new_balance = balance - amount;
+              if (new_balance >= 0.0) {
+                String update_balance = "UPDATE atm_database SET Balance = " + Double.toString(new_balance) + " WHERE AccountNum = " + account_number;
+                success = stmt.executeUpdate(update_balance);
+              }
+              else{
+                sufficient_funds = false;
+              }
+            }
+            catch(Exception e){
+              System.out.println("Make Witchdrawl exception: " + e.getMessage());
+              e.printStackTrace();
+            }
+
+            if (!sufficient_funds) {
                 return "Unable to withdraw. Amount will bring balance below zero";
             }
             else {
-                currentBalance -= amount;
-                // Update balance in atmData
-                rowData[2] = Double.toString(currentBalance);
-                return "WithdrawSuccess: User now has a balance of " + rowData[2];
+                if(success == 0){
+                  return "Unable to withdraw. Database access error";
+                }
+                else{
+                  return "Withdraw Success: User now has a balance of " + Double.toString(new_balance);
+                }
             }
         }
         else {
             return "WithdrawError: User needs to access an account";
         }
     }
+
     public String exitAccount() {
-        // Close any open accounts
-        if (allowAccess) {
-            try {
-                writeCSV();
+      if (allowAccess) {
+          try{
+              String accountNum_query = "SELECT * FROM atm_database WHERE AccountNum = " + account_number + " LIMIT 1";
+              //executes above query to search for a row in datbase that matches AccountNum
+              ResultSet rset = stmt.executeQuery(accountNum_query);
+              rset.next();
+              String update_query = "UPDATE atm_database SET Accessed = 0 WHERE AccountNum = " + account_number;
+              int rows_affected = stmt.executeUpdate(update_query);
             }
-            catch (Exception e) {
-                System.out.println("Write CSV Exception: " + e.getMessage());
-                e.printStackTrace();
-            }
-        }
-
-        // Set back to default values if they were logged into another accound
-        allowAccess = false;
-        accountRow = 0;
-        currentBalance = -9999.9;
-
-        return "ExitAccountSuccess: Successfully updated ATM and closed access to current account";
+          catch (Exception e) {
+              System.out.println("Write CSV Exception: " + e.getMessage());
+              e.printStackTrace();
+          }
+      }
+      allowAccess = false;
+      account_number = null;
+      return "ExitAccountSuccess: Successfully updated ATM and closed access to current account";
     }
-    private int findRow(String accountNum, String accountPin) throws FileNotFoundException, IOException {
-        BufferedReader br = new BufferedReader(new FileReader("atm.csv"));
-        FileWriter fw = new FileWriter("temp-atm.csv");
-        int i = 0;
-        String row;
-        while ((row = br.readLine()) != null) {
-            String[] line = row.split(",");
-            if (!allowAccess && line[0].equals(accountNum) && line[1].equals(accountPin)) {
-                if (line[3] == "1") {
-                    // Don't write anything and return
-                    br.close();
-                    fw.close();
-                    return 1;
-                }
-                allowAccess = true;
-                accountRow = i;
-                currentBalance = Double.valueOf(line[2]);
-                rowData = line;
-                rowData[3] = "1"; // Set that the line is being accessed
-                fw.append(String.join(",", rowData));
-            }
-            else {
-                fw.append(row);
-            }
-            fw.append("\n");
-            i++;
-        }
-        // Close file being read
-        br.close();
-        // Flush and close file being written
-        fw.flush();
-        fw.close();
 
-        // Replace csv file with temp one so it contains updated access field
-        File f1 = new File("temp-atm.csv");
-        File f2 = new File("atm.csv");
-        f2.delete();
-        f1.renameTo(f2);
-
-        return 0;
-    }
-    private void writeCSV() throws FileNotFoundException, IOException {
-        rowData[3] = "0"; // Set that the file is no longer being accessed
-        BufferedReader br = new BufferedReader(new FileReader("atm.csv"));
-        FileWriter fw = new FileWriter("temp-atm.csv");
-        int i = 0;
-        String row;
-        while ((row = br.readLine()) != null) {
-            if (i == accountRow) {
-                // Write over this line
-                fw.append(String.join(",", rowData));
-            }
-            else {
-                fw.append(row);
-            }
-            fw.append("\n");
-            i++;
-        }
-        // Close file being read
-        br.close();
-        // Flush and close file being written
-        fw.flush();
-        fw.close();
-
-        // Replace csv file with temp one so it contains updated fields
-        File f1 = new File("temp-atm.csv");
-        File f2 = new File("atm.csv");
-        f2.delete();
-        f1.renameTo(f2);
-    }
-    public static void main(String arg[]){
-        try {
-            AtmImpl obj = new AtmImpl();
-            Naming.rebind("AtmServer", obj);
-        }
-        catch (Exception e) {
-            System.out.println("AtmImpl Exception: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
+  public static void main(String arg[]){
+      try {
+          AtmImpl obj = new AtmImpl();
+          Naming.rebind("AtmServer", obj);
+      }
+      catch (Exception e) {
+          System.out.println("AtmImpl Exception: " + e.getMessage());
+          e.printStackTrace();
+      }
+  }
 }

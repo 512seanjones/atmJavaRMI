@@ -5,7 +5,7 @@ import java.util.Scanner;
 public class AtmClient {
     public static void main(String arg[]){
         try {
-            String ipAddress = "192.168.0.119";
+            String ipAddress = "127.0.0.1";
             Atm obj = (Atm) Naming.lookup("//" + ipAddress + "/AtmServer");
 
             Scanner in = new Scanner(System.in);
@@ -22,21 +22,22 @@ public class AtmClient {
                     boolean inAccount = true;
                     while (inAccount) {
                         System.out.println("\n");
-                        System.out.println("Current account balance is: " + obj.getBalance());
+                        System.out.println("Current account balance is:\n" + obj.getBalance());
                         System.out.println("\n");
                         System.out.println("Please select an atm option:");
                         System.out.println("\t1. Withdraw from account");
                         System.out.println("\t2. Deposit to account");
                         System.out.println("\t3. Exit account");
-                        String choice = in.nextLine();
+                        String choice = in.next() + in.nextLine();
                         switch (choice) {
                             case "1": {
-                                System.out.println("Enter deposit amount:");
+                                System.out.println("Enter withdraw amount");
                                 float amount = in.nextFloat();
                                 System.out.println(obj.withdraw(amount));
+                                break;
                             }
                             case "2": {
-                                System.out.println("Enter withdraw amount");
+                                System.out.println("Enter deposit amount:");
                                 float amount = in.nextFloat();
                                 System.out.println(obj.deposit(amount));
                                 break;
@@ -49,6 +50,7 @@ public class AtmClient {
                             }
                             default: {
                                 System.out.println("Please select an option from the menu");
+                                break;
                             }
                         }
                     }
@@ -65,11 +67,11 @@ public class AtmClient {
                 }
             }
 
-            System.out.println(obj.accessAccount("0002", "5555"));
-            System.out.println(obj.deposit(100.00));
-            System.out.println(obj.withdraw(25));
-            System.out.println(obj.getBalance());
-            System.out.println(obj.exitAccount());
+            // System.out.println(obj.accessAccount("0002", "5555"));
+            // System.out.println(obj.deposit(100.00));
+            // System.out.println(obj.withdraw(25));
+            // System.out.println(obj.getBalance());
+            // System.out.println(obj.exitAccount());
         }
         catch (Exception e) {
             System.out.println("AtmClient Exeception: " + e.getMessage());
