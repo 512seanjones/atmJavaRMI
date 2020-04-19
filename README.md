@@ -9,8 +9,8 @@ __Must start server first for proper operation__
     * mysqld --console
     * __Terminal 2__
     * javac Atm.java AtmImpl.java
-    * start rmiregistry 
-    * java AtmImpl
+    * start rmiregistry
+    * java -cp .;{PATH to SQL JAR file} AtmImpl
     * Make sure to have atm.csv in directory that this is being run from
 * Client:
     * Edit AtmClient.java to have IP address match that of the server
